@@ -75,7 +75,12 @@ void updatePulseRate() {
     unsigned long deltaPulses;
 
     currMillis = millis();
-    if (currMillis <= lastPulseCountMillis) return;
+    if (currMillis <= lastPulseCountMillis){
+        //counter restarted
+        lastPulseCountMillis = currMillis;
+        lastPulseCount = pulseCountCopy;
+        return;
+    }
     deltaT = currMillis - lastPulseCountMillis;
     if (deltaT >= PULSE_RATE_INTERVAL) {
         deltaPulses = pulseCountCopy - lastPulseCount;
