@@ -12,7 +12,6 @@
 #include <ArduinoJson.h>
 #include <Time.h>
 
-
 #include "wifi_credentials.h"
 //Espected format for wifi_credentials.h
 //#define STASSID "<your AP ssid>"
@@ -39,30 +38,29 @@ const char* password = STAPSK;
 ESP8266WebServer server(80);
 String output_json;
 
-
 //General variables -------------------------------------------------------------
 const int LED = 2;
 unsigned long bootTimeStamp;
 
 //Web server functions ----------------------------------------------------------
 void handleRoot() {
-  server.send(200, "text/plain", createJsonOutput());
+    server.send(200, "text/plain", createJsonOutput());
 }
 
 //-------------------------------------------------------------------------------
 void handleNotFound() {
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  }
-  server.send(404, "text/plain", message);
+    String message = "File Not Found\n\n";
+    message += "URI: ";
+    message += server.uri();
+    message += "\nMethod: ";
+    message += (server.method() == HTTP_GET) ? "GET" : "POST";
+    message += "\nArguments: ";
+    message += server.args();
+    message += "\n";
+    for (uint8_t i = 0; i < server.args(); i++) {
+        message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+    }
+    server.send(404, "text/plain", message);
 }
 
 //Hardware interruption callback function-----------------------------------------
@@ -104,53 +102,53 @@ String createJsonOutput(){
 }
 //--------------------------------------------------------------------------------
 void setup(void) {
-  pinMode(LED, OUTPUT);
-  Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  Serial.println("");
+    pinMode(LED, OUTPUT);
+    Serial.begin(115200);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+    Serial.println("");
 
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+    // Wait for connection
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("");
+    Serial.print("Connected to ");
+    Serial.println(ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
 
-  if (MDNS.begin("esp8266")) {
-    Serial.println("MDNS responder started");
-  }
+    if (MDNS.begin("esp8266")) {
+      Serial.println("MDNS responder started");
+    }
 
-  server.on("/", handleRoot);
-  server.on("/sensor_data", handleRoot);
+    server.on("/", handleRoot);
+    server.on("/sensor_data", handleRoot);
 
-  server.onNotFound(handleNotFound);
+    server.onNotFound(handleNotFound);
 
-  timeClient.begin();
-  Serial.println("NTP client started");
-  timeClient.update();
+    timeClient.begin();
+    Serial.println("NTP client started");
+    timeClient.update();
   
-  bootTimeStamp = timeClient.getEpochTime();
-  lastPulseCount = 0;
-  lastPulseCountMillis = millis();
-  pulseRate = 0;
+    bootTimeStamp = timeClient.getEpochTime();
+    lastPulseCount = 0;
+    lastPulseCountMillis = millis();
+    pulseRate = 0;
   
-  server.begin();
-  Serial.println("HTTP server started");
+    server.begin();
+    Serial.println("HTTP server started");
   
-  pinMode(PULSE_PIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PULSE_PIN), pulseCounter, RISING);
+    pinMode(PULSE_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(PULSE_PIN), pulseCounter, RISING);
 }
 //--------------------------------------------------------------------------------
 
 void loop(void) {
-  pulseCountCopy = pulseCount;
-  updatePulseRate();
-  digitalWrite(LED, pulseCountCopy % 2);
-  server.handleClient();
-  MDNS.update();
+    pulseCountCopy = pulseCount;
+    updatePulseRate();
+    digitalWrite(LED, pulseCountCopy % 2);
+    server.handleClient();
+    MDNS.update();
 }
