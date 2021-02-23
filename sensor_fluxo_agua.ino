@@ -1,9 +1,7 @@
-#define STASSID "ssw"
-#define STAPSK  "9192631770"
-#define NTP_UPDATE_PERIOD 60 //seconds
 #define NTP_SERVER "pool.ntp.org"
 #define FALSE 0
 #define TRUE 1
+#define PULSE_RATE_INTERVAL 1000 //ms
 
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
@@ -11,6 +9,9 @@
 #include <ESP8266mDNS.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ArduinoJson.h>
+#include <Time.h>
+
 
 #include "wifi_credentials.h"
 //Espected format for wifi_credentials.h
@@ -19,11 +20,13 @@
 
 //flow meter variables ----------------------------------------------------------
 uint8_t PULSE_PIN = D4; 
-volatile int pulseCount = 0;
-int pulseCountCopy;
+volatile unsigned long pulseCount = 0;
+unsigned long pulseCountCopy;
+unsigned long lastPulseCount;
+unsigned long lastPulseCountMillis;
+float pulseRate;
 
 //NTP variables -----------------------------------------------------------------
-// Define NTP Client to get time
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, NTP_SERVER , 0);
 int lastNTPUpdate = 0;
@@ -34,14 +37,16 @@ const char* password = STAPSK;
 
 //Web server variables ----------------------------------------------------------
 ESP8266WebServer server(80);
+String output_json;
+
 
 //General variables -------------------------------------------------------------
 const int LED = 2;
-bool firstLoop = FALSE;
+unsigned long bootTimeStamp;
 
 //Web server functions ----------------------------------------------------------
 void handleRoot() {
-  server.send(200, "text/plain", timeClient.getFormattedTime() + ' ' + pulseCountCopy);
+  server.send(200, "text/plain", createJsonOutput());
 }
 
 //-------------------------------------------------------------------------------
@@ -65,7 +70,38 @@ ICACHE_RAM_ATTR void pulseCounter() {
     // Increment the pulse counter
     pulseCount++;
 }
+//--------------------------------------------------------------------------------
+void updatePulseRate() {
+    unsigned long currMillis;
+    unsigned long deltaT;
+    unsigned long deltaPulses;
 
+    currMillis = millis();
+    if (currMillis <= lastPulseCountMillis) return;
+    deltaT = currMillis - lastPulseCountMillis;
+    if (deltaT >= PULSE_RATE_INTERVAL) {
+        deltaPulses = pulseCountCopy - lastPulseCount;
+        pulseRate = ((float)deltaPulses) / ((float)deltaT) * 1000.0;
+        lastPulseCount = pulseCountCopy;
+        lastPulseCountMillis = currMillis;
+    }
+}
+//--------------------------------------------------------------------------------
+String createJsonOutput(){
+    DynamicJsonDocument doc(1024);
+    unsigned long now;
+    char readableTime[32];
+    
+    now = timeClient.getEpochTime();
+    sprintf(readableTime, "%02d/%02d/%02d - %02d:%02d:%02d UTC", day(now), month(now), year(now), hour(now), minute(now), second(now));
+    doc["report_time_epoch"] = now;
+    doc["report_time"]       = readableTime;
+    doc["pulses"]            = pulseCountCopy;
+    doc["pulse_rate"]        = pulseRate;
+    output_json = "";
+    serializeJson(doc, output_json);
+    return output_json;
+}
 //--------------------------------------------------------------------------------
 void setup(void) {
   pinMode(LED, OUTPUT);
@@ -90,30 +126,31 @@ void setup(void) {
   }
 
   server.on("/", handleRoot);
+  server.on("/sensor_data", handleRoot);
 
   server.onNotFound(handleNotFound);
 
-  server.begin();
-  Serial.println("HTTP server started");
   timeClient.begin();
   Serial.println("NTP client started");
+  timeClient.update();
+  
+  bootTimeStamp = timeClient.getEpochTime();
+  lastPulseCount = 0;
+  lastPulseCountMillis = millis();
+  pulseRate = 0;
+  
+  server.begin();
+  Serial.println("HTTP server started");
+  
   pinMode(PULSE_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(PULSE_PIN), pulseCounter, RISING);
 }
 //--------------------------------------------------------------------------------
 
 void loop(void) {
-  int ntpDeltaT;
   pulseCountCopy = pulseCount;
+  updatePulseRate();
   digitalWrite(LED, pulseCountCopy % 2);
-  
   server.handleClient();
   MDNS.update();
-  ntpDeltaT = millis() - lastNTPUpdate;
-  if (lastNTPUpdate == 0 || ntpDeltaT < 0 || (ntpDeltaT / 1000) >= NTP_UPDATE_PERIOD)
-  {
-    timeClient.update();
-    lastNTPUpdate = millis();
-    Serial.println("NTP updated");
-  }
 }
