@@ -124,13 +124,15 @@ void setup(void) {
     // Wait for connection
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
+        Serial.println("Connecting to WiFi");
     }
     Serial.println("");
     Serial.print("Connected to ");
     Serial.println(ssid);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    Serial.print("MAC: ");
+    Serial.println(WiFi.macAddress());
 
     if (MDNS.begin("esp8266")) {
       Serial.println("MDNS responder started");
