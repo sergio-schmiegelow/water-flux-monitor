@@ -1,6 +1,7 @@
-#define NTP_SERVER "pool.ntp.org"
+#define NTP_SERVER "pool.ntp.br"
 #define FALSE 0
 #define TRUE 1
+#define PULSE_PIN D4 
 #define PULSE_RATE_INTERVAL 1000 //ms
 
 #include <ESP8266WiFi.h>
@@ -18,7 +19,7 @@
 //#define STAPSK  "<your AP password>"
 
 //flow meter variables ----------------------------------------------------------
-uint8_t PULSE_PIN = D4; 
+
 volatile unsigned long pulseCount = 0;
 unsigned long pulseCountCopy;
 unsigned long lastPulseCount;
@@ -44,9 +45,12 @@ unsigned long bootTimeStamp;
 
 //Web server functions ----------------------------------------------------------
 void handleRoot() {
+    server.send(200, "text/plain", String(pulseCountCopy));
+}
+//-------------------------------------------------------------------------------
+void handleSensorDataJson() {
     server.send(200, "text/plain", createJsonOutput());
 }
-
 //-------------------------------------------------------------------------------
 void handleNotFound() {
     String message = "File Not Found\n\n";
@@ -92,13 +96,17 @@ void updatePulseRate() {
 //--------------------------------------------------------------------------------
 String createJsonOutput(){
     DynamicJsonDocument doc(1024);
-    unsigned long now;
-    char readableTime[32];
+    unsigned long reportTimeStamp;
+    char readableReportTime[32];
+    char readableBootTime[32];
     
-    now = timeClient.getEpochTime();
-    sprintf(readableTime, "%02d/%02d/%02d - %02d:%02d:%02d UTC", day(now), month(now), year(now), hour(now), minute(now), second(now));
-    doc["report_time_epoch"] = now;
-    doc["report_time"]       = readableTime;
+    reportTimeStamp = timeClient.getEpochTime();
+    sprintf(readableReportTime, "%02d/%02d/%02d - %02d:%02d:%02d UTC", day(reportTimeStamp), month(reportTimeStamp), year(reportTimeStamp), hour(reportTimeStamp), minute(reportTimeStamp), second(reportTimeStamp));
+    sprintf(readableBootTime, "%02d/%02d/%02d - %02d:%02d:%02d UTC", day(bootTimeStamp), month(bootTimeStamp), year(bootTimeStamp), hour(bootTimeStamp), minute(bootTimeStamp), second(bootTimeStamp));
+    doc["boot_time_epoch"]   = bootTimeStamp;
+    doc["boot_time"]         = readableBootTime;
+    doc["report_time_epoch"] = reportTimeStamp;
+    doc["report_time"]       = readableReportTime;
     doc["pulses"]            = pulseCountCopy;
     doc["pulse_rate"]        = pulseRate;
     output_json = "";
@@ -129,7 +137,7 @@ void setup(void) {
     }
 
     server.on("/", handleRoot);
-    server.on("/sensor_data", handleRoot);
+    server.on("/sensor_data.json", handleSensorDataJson);
 
     server.onNotFound(handleNotFound);
 
